@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { connectDB, disconnectDB } from '../database';
 import { User } from '../models/User';
 import { Team } from '../models/Team';
 import { Activity } from '../models/Activity';
@@ -15,9 +15,7 @@ const seedDatabase = async () => {
   try {
     console.log('🌱 Starting seed script...');
     
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/octofit_db';
-    await mongoose.connect(mongoUri);
-    console.log('✓ Connected to MongoDB');
+    await connectDB();
 
     // Clear existing data
     console.log('🧹 Clearing existing collections...');
@@ -332,8 +330,7 @@ Summary:
 - Workouts: ${workouts.length}
     `);
 
-    await mongoose.connection.close();
-    console.log('✓ MongoDB connection closed');
+    await disconnectDB();
     process.exit(0);
   } catch (error) {
     console.error('❌ Seed script failed:', error);

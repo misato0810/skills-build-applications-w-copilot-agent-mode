@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import mongoose from 'mongoose';
+import { connectDB } from './database';
 import usersRouter from './routes/users';
 import teamsRouter from './routes/teams';
 import activitiesRouter from './routes/activities';
@@ -26,18 +26,6 @@ app.use((req, res, next) => {
         next();
     }
 });
-// Database connection
-const connectDB = async () => {
-    try {
-        const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/octofit_db';
-        await mongoose.connect(mongoUri);
-        console.log('✓ MongoDB connected');
-    }
-    catch (error) {
-        console.error('✗ MongoDB connection failed:', error);
-        process.exit(1);
-    }
-};
 // Routes
 app.use('/api/users', usersRouter);
 app.use('/api/teams', teamsRouter);
