@@ -1,4 +1,5 @@
 import express, { Router, Request, Response } from 'express';
+import { Leaderboard } from '../models/Leaderboard';
 
 const router: Router = express.Router();
 
@@ -6,67 +7,84 @@ const router: Router = express.Router();
  * GET /api/leaderboard
  * Retrieve leaderboard rankings
  */
-router.get('/', (req: Request, res: Response) => {
-  const { teamId, metric = 'points', limit = 10 } = req.query;
+router.get('/', async (req: Request, res: Response): Promise<void> => {
+  const { teamId, metric = 'points', limit = '10' } = req.query;
   
-  res.json({
-    message: 'Get leaderboard',
-    filters: { teamId, metric, limit },
-    leaderboard: [
-      {
-        rank: 1,
-        userId: 'user_1',
-        userName: 'Sample User 1',
-        [metric as string]: 1500,
-      },
-      {
-        rank: 2,
-        userId: 'user_2',
-        userName: 'Sample User 2',
-        [metric as string]: 1200,
-      },
-      {
-        rank: 3,
-        userId: 'user_3',
-        userName: 'Sample User 3',
-        [metric as string]: 950,
-      },
-    ],
-  });
+  try {
+    const query: any = {};
+    if (teamId) query.teamId = teamId;
+    
+    const sortBy: any = {};
+    sortBy[metric as string] = -1;
+    
+    const leaderboard = await Leaderboard.find(query)
+      .sort(sortBy)
+      .limit(parseInt(limit as string))
+      .populate('userId', 'name email')
+      .populate('teamId', 'name');
+    
+    res.json({
+      message: 'Get leaderboard',
+      filters: { teamId, metric, limit },
+      leaderboard,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
 });
 
 /**
  * GET /api/leaderboard/team/:teamId
  * Retrieve leaderboard for a specific team
  */
-router.get('/team/:teamId', (req: Request, res: Response) => {
+router.get('/team/:teamId', async (req: Request, res: Response): Promise<void> => {
   const { teamId } = req.params;
-  const { metric = 'points' } = req.query;
+  const { metric = 'points', limit = '10' } = req.query;
   
-  res.json({
-    message: `Get team leaderboard for ${teamId}`,
-    teamId,
-    metric,
-    leaderboard: [],
-  });
+  try {
+    const sortBy: any = {};
+    sortBy[metric as string] = -1;
+    
+    const leaderboard = await Leaderboard.find({ teamId })
+      .sort(sortBy)
+      .limit(parseInt(limit as string))
+      .populate('userId', 'name email');
+    
+    res.json({
+      message: `Get team leaderboard for ${teamId}`,
+      teamId,
+      metric,
+      leaderboard,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch team leaderboard' });
+  }
 });
 
 /**
  * GET /api/leaderboard/user/:userId
  * Retrieve user's leaderboard position
  */
-router.get('/user/:userId', (req: Request, res: Response) => {
+router.get('/user/:userId', async (req: Request, res: Response): Promise<void> => {
   const { userId } = req.params;
   
-  res.json({
-    message: `Get leaderboard position for user ${userId}`,
-    userId,
-    position: {
-      rank: 5,
-      points: 800,
-      totalActivities: 25,
-    },
-  });
+  try {
+    const entry = await Leaderboard.findOne({ userId })
+      .populate('userId', 'name email');
+    
+    if (!entry) {
+      res.status(404).json({ error: 'User not found in leaderboard' });
+      return;
+    }
+    
+    res.json({
+      message: `Get leaderboard position for user ${userId}`,
+      userId,
+      position: entry,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch user position' });
+  }
 });
 
 export default router;

@@ -1,47 +1,36 @@
 import express from 'express';
+import { Workout } from '../models/Workout';
 const router = express.Router();
 /**
  * GET /api/workouts
  * Retrieve available workout suggestions
  */
-router.get('/', (req, res) => {
-    const { difficulty = 'intermediate', type, limit = 10 } = req.query;
-    res.json({
-        message: 'Get workout suggestions',
-        filters: { difficulty, type, limit },
-        workouts: [
-            {
-                id: 'workout_1',
-                name: 'Morning Run',
-                type: 'running',
-                difficulty: 'intermediate',
-                duration: 30,
-                description: 'A moderate 5K run',
-            },
-            {
-                id: 'workout_2',
-                name: 'HIIT Session',
-                type: 'cardio',
-                difficulty: 'hard',
-                duration: 20,
-                description: 'High intensity interval training',
-            },
-            {
-                id: 'workout_3',
-                name: 'Yoga Flow',
-                type: 'flexibility',
-                difficulty: 'easy',
-                duration: 45,
-                description: 'Relaxing yoga session',
-            },
-        ],
-    });
+router.get('/', async (req, res) => {
+    const { difficulty, type, limit = '10' } = req.query;
+    try {
+        const query = {};
+        if (difficulty)
+            query.difficulty = difficulty;
+        if (type)
+            query.type = type;
+        const workouts = await Workout.find(query)
+            .limit(parseInt(limit))
+            .populate('createdBy', 'name email');
+        res.json({
+            message: 'Get workout suggestions',
+            filters: { difficulty, type, limit },
+            workouts,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch workouts' });
+    }
 });
 /**
  * POST /api/workouts
  * Create or suggest a new workout
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     const { name, type, difficulty, duration, description, userId } = req.body;
     if (!name || !type || !difficulty) {
         res.status(400).json({
@@ -49,60 +38,64 @@ router.post('/', (req, res) => {
         });
         return;
     }
-    res.status(201).json({
-        message: 'Workout created successfully',
-        workout: {
-            id: 'workout_' + Date.now(),
+    try {
+        const workout = await Workout.create({
             name,
             type,
             difficulty,
             duration: duration || 30,
             description: description || '',
-            suggestedFor: userId || 'all',
-            createdAt: new Date(),
-        },
-    });
+            createdBy: userId || null,
+        });
+        res.status(201).json({
+            message: 'Workout created successfully',
+            workout,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to create workout' });
+    }
 });
 /**
  * GET /api/workouts/:id
  * Retrieve a specific workout
  */
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
     const { id } = req.params;
-    res.json({
-        message: `Get workout ${id}`,
-        workout: {
-            id,
-            name: 'Sample Workout',
-            type: 'running',
-            difficulty: 'intermediate',
-            duration: 30,
-            description: 'A sample workout routine',
-            exercises: [],
-        },
-    });
+    try {
+        const workout = await Workout.findById(id).populate('createdBy', 'name email');
+        if (!workout) {
+            res.status(404).json({ error: 'Workout not found' });
+            return;
+        }
+        res.json({
+            message: `Get workout ${id}`,
+            workout,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch workout' });
+    }
 });
 /**
  * GET /api/workouts/personalized/:userId
  * Get personalized workout recommendations for a user
  */
-router.get('/personalized/:userId', (req, res) => {
+router.get('/personalized/:userId', async (req, res) => {
     const { userId } = req.params;
-    res.json({
-        message: `Get personalized workouts for user ${userId}`,
-        userId,
-        recommendations: [
-            {
-                id: 'workout_1',
-                name: 'Beginner Cardio',
-                reason: 'Based on your activity level',
-            },
-            {
-                id: 'workout_2',
-                name: 'Strength Training',
-                reason: 'Complement your running routine',
-            },
-        ],
-    });
+    try {
+        // Get random recommendations (in production, would use ML model)
+        const recommendations = await Workout.find()
+            .limit(3)
+            .populate('createdBy', 'name email');
+        res.json({
+            message: `Get personalized workouts for user ${userId}`,
+            userId,
+            recommendations,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch recommendations' });
+    }
 });
 export default router;

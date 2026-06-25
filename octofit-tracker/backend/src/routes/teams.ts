@@ -1,4 +1,5 @@
 import express, { Router, Request, Response } from 'express';
+import { Team } from '../models/Team';
 
 const router: Router = express.Router();
 
@@ -6,18 +7,25 @@ const router: Router = express.Router();
  * GET /api/teams
  * Retrieve all teams
  */
-router.get('/', (_req: Request, res: Response) => {
-  res.json({
-    message: 'Get all teams',
-    teams: [],
-  });
+router.get('/', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const teams = await Team.find()
+      .populate('createdBy', 'name email')
+      .populate('members', 'name email');
+    res.json({
+      message: 'Get all teams',
+      teams,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch teams' });
+  }
 });
 
 /**
  * POST /api/teams
  * Create a new team
  */
-router.post('/', (req: Request, res: Response): void => {
+router.post('/', async (req: Request, res: Response): Promise<void> => {
   const { name, description, createdBy } = req.body;
   
   if (!name || !createdBy) {
@@ -27,71 +35,105 @@ router.post('/', (req: Request, res: Response): void => {
     return;
   }
   
-  res.status(201).json({
-    message: 'Team created successfully',
-    team: {
-      id: 'team_' + Date.now(),
+  try {
+    const team = await Team.create({
       name,
       description: description || '',
       createdBy,
       members: [createdBy],
-      createdAt: new Date(),
-    },
-  });
+      totalMembers: 1,
+    });
+    
+    res.status(201).json({
+      message: 'Team created successfully',
+      team,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create team' });
+  }
 });
 
 /**
  * GET /api/teams/:id
  * Retrieve a specific team
  */
-router.get('/:id', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   
-  res.json({
-    message: `Get team ${id}`,
-    team: {
-      id,
-      name: 'Sample Team',
-      description: 'A great team for fitness tracking',
-      members: [],
-    },
-  });
+  try {
+    const team = await Team.findById(id)
+      .populate('createdBy', 'name email')
+      .populate('members', 'name email');
+    
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    
+    res.json({
+      message: `Get team ${id}`,
+      team,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch team' });
+  }
 });
 
 /**
  * PUT /api/teams/:id
  * Update a team
  */
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const updates = req.body;
   
-  res.json({
-    message: `Team ${id} updated`,
-    team: {
-      id,
-      ...updates,
-    },
-  });
+  try {
+    const team = await Team.findByIdAndUpdate(id, updates, { new: true })
+      .populate('createdBy', 'name email')
+      .populate('members', 'name email');
+    
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    
+    res.json({
+      message: `Team ${id} updated`,
+      team,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update team' });
+  }
 });
 
 /**
  * DELETE /api/teams/:id
  * Delete a team
  */
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   
-  res.json({
-    message: `Team ${id} deleted`,
-  });
+  try {
+    const team = await Team.findByIdAndDelete(id);
+    
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    
+    res.json({
+      message: `Team ${id} deleted`,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete team' });
+  }
 });
 
 /**
  * POST /api/teams/:id/members
  * Add a member to a team
  */
-router.post('/:id/members', (req: Request, res: Response): void => {
+router.post('/:id/members', async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const { userId } = req.body;
   
@@ -100,9 +142,27 @@ router.post('/:id/members', (req: Request, res: Response): void => {
     return;
   }
   
-  res.json({
-    message: `User ${userId} added to team ${id}`,
-  });
+  try {
+    const team = await Team.findById(id);
+    
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    
+    if (!team.members.includes(userId)) {
+      team.members.push(userId);
+      team.totalMembers = team.members.length;
+      await team.save();
+    }
+    
+    res.json({
+      message: `User ${userId} added to team ${id}`,
+      team,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add member to team' });
+  }
 });
 
 export default router;
